@@ -3,6 +3,7 @@
 from collections import defaultdict, Counter
 import gzip
 import json
+import subprocess
 
 
 def dates():
@@ -25,7 +26,7 @@ def hourly_timestamps(month, day):
 def download_log_files(month, day):
     timestamps = hourly_timestamps(month, day)
     url_template = "http://data.githubarchive.org/{}.json.gz"
-    subprocess.call(['wget', *[url_template.format(ts) for ts in timestamps]])
+    subprocess.call(['wget'] + [url_template.format(ts) for ts in timestamps])
 
 
 def save(data, filename):
@@ -36,32 +37,32 @@ def save(data, filename):
 def log(msg): print(msg, end='', flush=True)
 
 
-def recode_logs(month, day, path='./'):
+def recode_logs(month, day):
     activity = defaultdict(Counter)
     for timestamp in hourly_timestamps(month, day):
         log('.')
-        with gzip.open("{}{}.json.gz".format(path, timestamp), 'rt') as f:
-            for event in (json.loads(line) for line in f):
+        with gzip.open("{}.json.gz".format(timestamp), 'rt') as f:
+            for i, line in enumerate(f):
                 try:
+                    event = json.loads(line)
                     actor = event['actor']['login']
                     repo = event['repo']['name']
                     activity[actor][repo] += 1
-                except:
-                    id = event['id']
-                    raise RuntimeError("Error processing event #{}".format(id))
+                except Exception as e:
+                    log("\nerror on line #{} of {}\n".format(i+1, timestamp))
+                    log("{}\n".format(e))
 
     save(activity, '2015-{:02}-{:02}-activity'.format(month, day))
 
 
-def process_all(path):
     for month, day in dates():
         log("{:02}/{:02}:".format(month, day))
         try:
             # download_log_files(month, day)
-            recode_logs(month, day, path)
+            recode_logs(month, day)
         except Exception as e:
             log(e)
         log('\n')
 
 if __name__ == "__main__":
-    process_all("./")
+    # process_all()
